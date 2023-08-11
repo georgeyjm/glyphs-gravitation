@@ -1,0 +1,256 @@
+from __future__ import division, print_function, unicode_literals
+import objc
+from GlyphsApp import *
+from GlyphsApp.plugins import *
+# from AppKit import NSColor, NSBezierPath, NSPoint, NSGradient, NSMakeRect
+
+import numpy as np
+from PIL import Image, ImageDraw
+from cairosvg import svg2png
+
+# import numpy as np
+
+class Gravitation(ReporterPlugin):
+
+	@objc.python_method
+	def settings(self):
+		self.menuName = Glyphs.localize({
+			'en': 'Gravitation',
+			'zh': '重力区域',
+			'de': 'Mein Plugin',
+			'fr': 'Ma extension',
+			'es': 'Mi plugin',
+			'pt': 'Meu plug-in',
+			})
+
+		self.curr_glyph = None
+		self.curr_svg = ''
+		self.should_redraw = True
+		
+		# self.generalContextMenus = [{
+		# 	'name': Glyphs.localize({
+		# 		'en': 'Do something',
+		# 		'de': 'Tu etwas',
+		# 		'fr': 'Faire quelque chose',
+		# 		'es': 'Hacer algo',
+		# 		'pt': 'Faça alguma coisa',
+		# 		}), 
+		# 	'action': self.doSomething_
+		# 	}]
+
+		# A keyboard shortcut for activating/deactivating the plug-in
+		# self.keyboardShortcut = 'p'
+		# Modifier keys used for the keyboard shortcut
+		# Set to any combination of:
+		# NSShiftKeyMask | NSControlKeyMask | NSCommandKeyMask | NSAlternateKeyMask
+		# self.keyboardShortcutModifier = NSControlKeyMask
+
+	@objc.python_method
+	def start(self):
+		# Your init code goes here...
+		pass
+
+	@objc.python_method
+	def background(self, layer): # or foreground
+		# NSColor.controlTextColor().set()
+		# NSBezierPath.fillRect_(layer.bounds)
+		# self.drawTextAtPoint(layer.parent.name, NSPoint(0, 0))
+
+		# for shape in layer.shapes:
+		# 	print(shape.nodes)
+		# 	print(shape.bezierPath)
+		# NSColor.redColor().set()
+		# layer.completeBezierPath.fill()
+
+		# path = layer.completeBezierPath
+		# print(layer.completeBezierPath.__dir__())
+		# pos = Glyphs.currentDocument.windowController().activeEditViewController().graphicView().getActiveLocation_(Glyphs.currentEvent())
+		# print(pos.x, pos.y)
+		# print(layer.completeBezierPath.containsPoint_((474, 563)))
+		# print(path.elementCount)
+		# for i in range(path.elementCount):
+		# 	print(i, path.elementAtIndex_(i))
+
+		if not self.conditionsAreMetForDrawing():
+			return
+		if self.curr_glyph == layer.parent.unicode:
+			return
+		self.draw_gravitation(layer)
+		self.curr_glyph = layer.parent.unicode
+
+	
+	def draw_gravitation(self, layer):
+		width = layer.width
+		height = 0
+		descender = 0
+		for metric in layer.metrics:
+			if metric.name == 'Ascender, Han':
+				height += metric.position
+			elif metric.name == 'Descender, Han':
+				height -= metric.position
+				descender = -metric.position
+		
+		svg = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">'.format(width, height)
+		for path in layer.paths:
+			path_d = 'M {} {} '.format(path.nodes[-1].position.x, height - path.nodes[-1].position.y - descender)
+			i = 0
+			while i < len(path.nodes) - 1:
+				node = path.nodes[i]
+				if node.type == 'offcurve':
+					assert path.nodes[i + 1].type == 'offcurve'
+					assert path.nodes[i + 2].type == 'curve'
+					path_d += 'C {} {}, {} {}, {} {} '.format(node.position.x, height - node.position.y - descender, path.nodes[i + 1].position.x, height - path.nodes[i + 1].position.y - descender, path.nodes[i + 2].position.x, height - path.nodes[i + 2].position.y - descender)
+					i += 2
+				elif node.type == 'line':
+					path_d += 'L {} {} '.format(node.position.x, height - node.position.y - descender)
+				elif node.type == 'curve':
+					raise ValueError
+				i += 1
+			path_d += 'Z'
+			svg += '<path d="{}" fill="black" fill-rule="evenodd"/>'.format(path_d)
+		svg += '</svg>'
+		if self.curr_svg == svg:
+			return
+		self.curr_svg = svg
+
+		print('draw')
+		center_x, center_y, var_x, var_y = self.calculate_from_svg(svg)
+		center_y = height - center_y - descender
+		a = NSPoint()
+		a.x = center_x - var_x
+		a.y = center_y - var_y
+		b = NSPoint()
+		b.x = center_x + var_x
+		b.y = center_y + var_y
+
+		rect = NSMakeRect(center_x - var_x, center_y - var_y, var_x * 2, var_y * 2)
+
+		# NSColor.controlTextColor().set()
+		color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.2, 0.8, 0.3)
+		color.set()
+		# NSBezierPath.fillOval_(a, b)
+		# NSBezierPath.fillOval(rect)
+		circle = NSBezierPath.bezierPathWithOvalInRect_(rect)
+		circle.fill()
+		# myPath = NSBezierPath.alloc().init()  # initialize a path object
+		# myPath.appendRect_(rect)   # add subpath
+		# myPath.fill()   # fill with the current NSColor (see above)
+
+		# print('SPSPSP')
+		# for path in layer.paths:
+		# 	print(path)
+
+	def calculate_from_svg(self, svg_code):
+		# svg_code = open('char.svg').read()
+		svg2png(bytestring=svg_code, write_to=open('/Users/george/Downloads/output.png', 'wb'))
+
+		# im = Image.open('char.png').convert('L')
+		im = Image.open('/Users/george/Downloads/output.png')
+		bg = Image.new('RGBA', im.size, 'WHITE')
+		bg.paste(im, (0, 0), im)
+		im = bg.convert('L')
+		arr = np.array(im)
+		arr = (255 - arr) / 255
+
+		height, width = arr.shape
+		total_sum = arr.sum()
+
+		# Horizontal distribution (summing vertically)
+		dist = arr.sum(axis=0)
+		vals = np.arange(1, width + 1)
+		center_x = np.dot(dist, vals) / total_sum
+		var_x = np.sqrt((dist * (vals - np.average(vals, weights=dist)) ** 2).sum() / total_sum)
+
+		# Vertical distribution (summing horizontally)
+		dist = arr.sum(axis=1)
+		vals = np.arange(1, height + 1)
+		center_y = np.dot(dist, vals) / total_sum
+		var_y = np.sqrt((dist * (vals - np.average(vals, weights=dist)) ** 2).sum() / total_sum)
+
+		return center_x, center_y, var_x, var_y
+
+		# overlay = Image.new('RGBA', im.size)
+		# draw = ImageDraw.Draw(overlay)
+		# draw.ellipse(((center_x - var_x, center_y - var_y), (center_x + var_x, center_y + var_y)), fill=(50, 50, 200, 100))
+		# im = Image.alpha_composite(im.convert('RGBA'), overlay)
+		# im.save('processed.png', 'PNG')
+
+	@objc.python_method
+	def inactiveLayerBackground(self, layer): # or inactiveLayerForeground
+		# NSColor.selectedTextColor().set()
+		# # Draw outlines in above color
+		# if layer.paths:
+		# 	layer.bezierPath.fill()
+		# # Draw components in highlight color
+		# if layer.components:
+		# 	NSColor.findHighlightColor().set()
+		# 	for component in layer.components:
+		# 		component.bezierPath.fill()
+		if not self.conditionsAreMetForDrawing():
+			return
+		self.draw_gravitation(layer)
+
+	@objc.python_method
+	def preview(self, layer):
+		# NSColor.textColor().set()
+		# if layer.paths:
+		# 	layer.bezierPath.fill()
+		# if layer.components:
+		# 	NSColor.highlightColor().set()
+		# 	for component in layer.components:
+		# 		component.bezierPath.fill()
+		pass
+	
+	# def doSomething_(self, sender):
+	# 	print('Just did something')
+
+	@objc.python_method
+	def conditionalContextMenus(self):
+
+		# # Empty list of context menu items
+		# contextMenus = []
+
+		# # Execute only if layers are actually selected
+		# if Glyphs.font.selectedLayers:
+		# 	layer = Glyphs.font.selectedLayers[0]
+			
+		# 	# Exactly one object is selected and it’s an anchor
+		# 	if len(layer.selection) == 1 and type(layer.selection[0]) == GSAnchor:
+					
+		# 		# Add context menu item
+		# 		contextMenus.append({
+		# 			'name': Glyphs.localize({
+		# 				'en': 'Do something else',
+		# 				'de': 'Tu etwas anderes',
+		# 				'fr': 'Faire aute chose',
+		# 				'es': 'Hacer algo más',
+		# 				'pt': 'Faça outra coisa',
+		# 				}), 
+		# 			'action': self.doSomethingElse_
+		# 			})
+
+		# # Return list of context menu items
+		# return contextMenus
+		pass
+
+	# def doSomethingElse_(self, sender):
+	# 	print('Just did something else')
+
+	@objc.python_method
+	def conditionsAreMetForDrawing(self):
+		"""
+		Don't activate if text or pan (hand) tool are active.
+		"""
+		currentController = self.controller.view().window().windowController()
+		if currentController:
+			tool = currentController.toolDrawDelegate()
+			textToolIsActive = tool.isKindOfClass_(NSClassFromString("GlyphsToolText"))
+			handToolIsActive = tool.isKindOfClass_(NSClassFromString("GlyphsToolHand"))
+			if not textToolIsActive:# and not handToolIsActive: 
+				return True
+		return False
+
+	@objc.python_method
+	def __file__(self):
+		"""Please leave this method unchanged"""
+		return __file__

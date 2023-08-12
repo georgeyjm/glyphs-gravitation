@@ -6,6 +6,7 @@ from GlyphsApp.plugins import *
 import numpy as np
 from PIL import Image, ImageDraw
 from cairosvg import svg2png
+import time
 
 
 class Gravitation(ReporterPlugin):
@@ -25,6 +26,8 @@ class Gravitation(ReporterPlugin):
         self.cached = {}
         self.cachedPath = None
 
+        self.scalar = 0.5 # Scale the SVG image for faster SVG2PNG
+
 
     @objc.python_method
     def start(self):
@@ -38,7 +41,10 @@ class Gravitation(ReporterPlugin):
         if layer.bezierPath == self.cachedPath:
             self.draw_gravitation(self.cached.get(layer.parent.unicode + layer.layerId), True)
         else:
+            start = time.time()
             metrics = self.calculate_gravitation(layer)
+            end = time.time()
+            print((end - start) / 1000)
             self.draw_gravitation(metrics, True)
             self.cachedPath = layer.bezierPath
             self.cached[layer.parent.unicode + layer.layerId] = metrics
@@ -90,19 +96,19 @@ class Gravitation(ReporterPlugin):
                 descender = -metric.position
         
         # Draw all SVG paths
-        svg = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">'.format(width, height)
+        svg = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">'.format(width * self.scalar, height * self.scalar)
         for path in layer.paths:
-            path_d = 'M {} {} '.format(path.nodes[-1].position.x, height - path.nodes[-1].position.y - descender)
+            path_d = 'M {} {} '.format(path.nodes[-1].position.x * self.scalar, (height - path.nodes[-1].position.y - descender) * self.scalar)
             i = 0
             while i < len(path.nodes) - 1:
                 node = path.nodes[i]
                 if node.type == 'offcurve':
                     assert path.nodes[i + 1].type == 'offcurve'
                     assert path.nodes[i + 2].type == 'curve'
-                    path_d += 'C {} {}, {} {}, {} {} '.format(node.position.x, height - node.position.y - descender, path.nodes[i + 1].position.x, height - path.nodes[i + 1].position.y - descender, path.nodes[i + 2].position.x, height - path.nodes[i + 2].position.y - descender)
+                    path_d += 'C {} {}, {} {}, {} {} '.format(node.position.x * self.scalar, (height - node.position.y - descender) * self.scalar, path.nodes[i + 1].position.x * self.scalar, (height - path.nodes[i + 1].position.y - descender) * self.scalar, path.nodes[i + 2].position.x * self.scalar, (height - path.nodes[i + 2].position.y - descender) * self.scalar)
                     i += 2
                 elif node.type == 'line':
-                    path_d += 'L {} {} '.format(node.position.x, height - node.position.y - descender)
+                    path_d += 'L {} {} '.format(node.position.x * self.scalar, (height - node.position.y - descender) * self.scalar)
                 elif node.type == 'curve':
                     raise ValueError
                 i += 1
@@ -110,11 +116,11 @@ class Gravitation(ReporterPlugin):
             svg += '<path d="{}" fill="black" fill-rule="evenodd"/>'.format(path_d)
         svg += '</svg>'
 
-        # Calculate gravitation from SVG file
+        # Calculate gravitation from SVG file (with scaling accounted for)
         # print('draw', layer.parent.name)
         center_x, center_y, var_x, var_y = self.calculate_gravitation_from_svg(svg)
-        center_y = height - center_y - descender # Different axis system
-        return center_x - var_x, center_y - var_y, var_x * 2, var_y * 2
+        center_y = height * self.scalar - center_y - descender * self.scalar # Different axis system
+        return (center_x - var_x) / self.scalar, (center_y - var_y) / self.scalar, var_x * 2 / self.scalar, var_y * 2 / self.scalar
 
 
     def calculate_gravitation_from_svg(self, svg_code):

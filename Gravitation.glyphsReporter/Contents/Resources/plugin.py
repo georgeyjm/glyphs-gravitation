@@ -84,9 +84,9 @@ class Gravitation(ReporterPlugin):
         height = 0
         descender = 0
         for metric in layer.metrics:
-            if metric.name == 'Ascender, Han':
+            if metric.name.startswith('Ascender'): # Perhaps not the best method to pick different ascenders
                 height += metric.position
-            elif metric.name == 'Descender, Han':
+            elif metric.name.startswith('Descender'):
                 height -= metric.position
                 descender = -metric.position
         

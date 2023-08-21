@@ -121,7 +121,6 @@ class Gravitation(ReporterPlugin):
     def calculate_gravitation_from_svg(self, svg_code):
         # Convert SVG code to NumPy array
         im = pyvips.Image.svgload_buffer(bytes(svg_code, 'utf-8'), scale=self.scalar)
-        im.write_to_file('/Users/george/Downloads/output.png')
         arr = (255 - im.numpy()[:, :, 0]) / 255
         height, width = arr.shape
         total_sum = arr.sum()

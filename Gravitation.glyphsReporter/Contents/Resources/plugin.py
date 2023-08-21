@@ -43,7 +43,7 @@ class Gravitation(ReporterPlugin):
             self.draw_gravitation(metrics, True)
             self.cachedPath = layer.bezierPath
             self.cached[layer.parent.unicode + layer.layerId] = metrics
-    
+
 
     @objc.python_method
     def inactiveLayerForeground(self, layer):
@@ -55,11 +55,11 @@ class Gravitation(ReporterPlugin):
             metrics = self.calculate_gravitation(layer)
             self.draw_gravitation(metrics, False)
             self.cached[layer.parent.unicode + layer.layerId] = metrics
-    
+
 
     def draw_gravitation(self, metrics, is_active=False):
         if is_active:
-            color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.5, 0.1, 0.5, 0.3)
+            color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.4, 0.0, 0.35)
         else:
             color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.2, 0.2, 0.8, 0.3)
         color.set()
@@ -74,9 +74,9 @@ class Gravitation(ReporterPlugin):
         path = NSBezierPath.bezierPath()
         path.moveToPoint_(start)
         path.lineToPoint_(end)
-        path.setLineWidth_(1.5)
+        path.setLineWidth_(1)
         path.stroke()
-    
+
 
     def calculate_gravitation(self, layer):
         # Get dimensions of SVG

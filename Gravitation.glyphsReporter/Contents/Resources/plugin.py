@@ -4,9 +4,7 @@ from GlyphsApp import *
 from GlyphsApp.plugins import *
 
 import numpy as np
-from PIL import Image, ImageDraw
-from cairosvg import svg2png
-import time
+import pyvips
 
 
 class Gravitation(ReporterPlugin):
@@ -26,7 +24,7 @@ class Gravitation(ReporterPlugin):
         self.cached = {}
         self.cachedPath = None
 
-        self.scalar = 0.5 # Scale the SVG image for faster SVG2PNG
+        self.scalar = 0.5 # Scale the SVG image for faster performance
 
 
     @objc.python_method
@@ -41,10 +39,7 @@ class Gravitation(ReporterPlugin):
         if layer.bezierPath == self.cachedPath:
             self.draw_gravitation(self.cached.get(layer.parent.unicode + layer.layerId), True)
         else:
-            start = time.time()
             metrics = self.calculate_gravitation(layer)
-            end = time.time()
-            print((end - start) / 1000)
             self.draw_gravitation(metrics, True)
             self.cachedPath = layer.bezierPath
             self.cached[layer.parent.unicode + layer.layerId] = metrics
@@ -96,25 +91,25 @@ class Gravitation(ReporterPlugin):
                 descender = -metric.position
         
         # Draw all SVG paths
-        svg = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/>'.format(width * self.scalar, height * self.scalar)
+        svg = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/>'.format(width, height)
         path_d = ''
         for path in layer.paths:
-            path_d += 'M {} {} '.format(path.nodes[-1].position.x * self.scalar, (height - path.nodes[-1].position.y - descender) * self.scalar)
+            path_d += 'M {} {} '.format(path.nodes[-1].position.x, (height - path.nodes[-1].position.y - descender))
             i = 0
             while i < len(path.nodes) - 1:
                 node = path.nodes[i]
                 if node.type == 'offcurve':
                     assert path.nodes[i + 1].type == 'offcurve'
                     assert path.nodes[i + 2].type == 'curve'
-                    path_d += 'C {} {}, {} {}, {} {} '.format(node.position.x * self.scalar, (height - node.position.y - descender) * self.scalar, path.nodes[i + 1].position.x * self.scalar, (height - path.nodes[i + 1].position.y - descender) * self.scalar, path.nodes[i + 2].position.x * self.scalar, (height - path.nodes[i + 2].position.y - descender) * self.scalar)
+                    path_d += 'C {} {}, {} {}, {} {} '.format(node.position.x, (height - node.position.y - descender), path.nodes[i + 1].position.x, (height - path.nodes[i + 1].position.y - descender), path.nodes[i + 2].position.x, (height - path.nodes[i + 2].position.y - descender))
                     i += 2
                 elif node.type == 'line':
-                    path_d += 'L {} {} '.format(node.position.x * self.scalar, (height - node.position.y - descender) * self.scalar)
+                    path_d += 'L {} {} '.format(node.position.x, (height - node.position.y - descender))
                 elif node.type == 'curve':
                     raise ValueError
                 i += 1
             path_d += 'Z '
-        svg += '<path d="{}" fill="black" fill-rule="evenodd"/></svg>'.format(path_d)
+        svg += '<path d="{}" fill="black"/></svg>'.format(path_d)
 
         # Calculate gravitation from SVG file (with scaling accounted for)
         # print('draw', layer.parent.name)
@@ -124,14 +119,10 @@ class Gravitation(ReporterPlugin):
 
 
     def calculate_gravitation_from_svg(self, svg_code):
-        # Convert SVG to PNG with white background
-        svg2png(bytestring=svg_code, write_to=open('/Users/george/Downloads/output.png', 'wb'))
-        im = Image.open('/Users/george/Downloads/output.png')
-        bg = Image.new('RGBA', im.size, 'WHITE')
-        bg.paste(im, (0, 0), im)
-        im = bg.convert('L')
-        arr = np.array(im)
-        arr = (255 - arr) / 255
+        # Convert SVG code to NumPy array
+        im = pyvips.Image.svgload_buffer(bytes(svg_code, 'utf-8'), scale=self.scalar)
+        im.write_to_file('/Users/george/Downloads/output.png')
+        arr = (255 - im.numpy()[:, :, 0]) / 255
         height, width = arr.shape
         total_sum = arr.sum()
 

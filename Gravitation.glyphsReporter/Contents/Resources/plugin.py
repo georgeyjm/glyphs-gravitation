@@ -96,9 +96,10 @@ class Gravitation(ReporterPlugin):
                 descender = -metric.position
         
         # Draw all SVG paths
-        svg = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">'.format(width * self.scalar, height * self.scalar)
+        svg = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/>'.format(width * self.scalar, height * self.scalar)
+        path_d = ''
         for path in layer.paths:
-            path_d = 'M {} {} '.format(path.nodes[-1].position.x * self.scalar, (height - path.nodes[-1].position.y - descender) * self.scalar)
+            path_d += 'M {} {} '.format(path.nodes[-1].position.x * self.scalar, (height - path.nodes[-1].position.y - descender) * self.scalar)
             i = 0
             while i < len(path.nodes) - 1:
                 node = path.nodes[i]
@@ -112,9 +113,8 @@ class Gravitation(ReporterPlugin):
                 elif node.type == 'curve':
                     raise ValueError
                 i += 1
-            path_d += 'Z'
-            svg += '<path d="{}" fill="black" fill-rule="evenodd"/>'.format(path_d)
-        svg += '</svg>'
+            path_d += 'Z '
+        svg += '<path d="{}" fill="black" fill-rule="evenodd"/></svg>'.format(path_d)
 
         # Calculate gravitation from SVG file (with scaling accounted for)
         # print('draw', layer.parent.name)

@@ -84,12 +84,12 @@ class Gravitation(ReporterPlugin):
         height = 0
         descender = 0
         for metric in layer.metrics:
-            if metric.name.startswith('Ascender'): # Perhaps not the best method to pick different ascenders
+            if metric.name.startswith('Ascender') or metric.name.startswith('上升部'): # Perhaps not the best method to pick different ascenders
                 height += metric.position
-            elif metric.name.startswith('Descender'):
+            elif metric.name.startswith('Descender') or metric.name.startswith('下降部'):
                 height -= metric.position
                 descender = -metric.position
-        
+
         # Draw all SVG paths
         svg = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/>'.format(width, height)
         path_d = ''

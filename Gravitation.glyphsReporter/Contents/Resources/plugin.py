@@ -84,9 +84,10 @@ class Gravitation(ReporterPlugin):
         height = 0
         descender = 0
         for metric in layer.metrics:
-            if metric.name.startswith('Ascender') or metric.name.startswith('上升部'): # Perhaps not the best method to pick different ascenders
+            # Metric types: ascender (1), cap height (2), baseline (8), descender (7)
+            if metric.metric.type == 1:
                 height += metric.position
-            elif metric.name.startswith('Descender') or metric.name.startswith('下降部'):
+            elif metric.metric.type == 7:
                 height -= metric.position
                 descender = -metric.position
 

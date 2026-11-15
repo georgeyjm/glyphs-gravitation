@@ -8,15 +8,6 @@
 Gravitation helps type designers (especially those designing CJK typefaces) to visualize the "visual center" of a glyph. This provides a quantifiable and intuitive method to help balance the weights within glyphs.
 
 
-## Installation
-
-1. In Glyphs, open *Window > Plugin Manager > Modules* and install **Python** and **FontTools**. Then select the Python version marked "(Glyphs)" in *Settings > Addons* and restart Glyphs.
-
-2. Double-click `Gravitation.glyphsReporter` to install it, then restart Glyphs.
-
-No other third-party libraries are needed: the center of gravity and spread are calculated directly from the outlines with fontTools' `StatisticsPen`.
-
-
 ## Usage
 
 Turn it on with *View > Show Gravitation* (⇧⌘V).
@@ -30,7 +21,7 @@ The active glyph is orange and shows its center below the baseline, as a percent
 
 Right-click in the edit view for the settings panel and two commands:
 
-- **Show numbers**, **Show inactive glyphs**: what to draw.
+- **Show numbers**, **Show on inactive glyphs**: what to draw.
 - **Tilt ellipse with the ink**: rotates the ellipse along the directions of most and least spread, so glyphs whose weight leans diagonally (e.g. 戈, 女) show it.
 - **Extend center line across the line**: draws the horizontal center line across the whole line of text, for comparing heights between neighbors.
 - **Show font reference lines**: dashed gray lines at the font's typical center (after computing the reference).

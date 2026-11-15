@@ -18,13 +18,19 @@ TILT_ELLIPSE = PREFIX + 'tiltEllipse'
 EXTEND_LINE = PREFIX + 'extendCenterLine'
 SHOW_REFERENCE = PREFIX + 'showReference'
 
-# Checkboxes in the right-click settings panel: (defaults key, default, English, Chinese)
+def localized(en, zh, zh_hant, ja):
+    """Pick the string for Glyphs' interface language (English, Simplified/Traditional Chinese, Japanese)."""
+    return Glyphs.localize({'en': en, 'zh': zh, 'zh-Hans': zh, 'zh-Hant': zh_hant, 'ja': ja})
+
+
+# Checkboxes in the right-click settings panel:
+# (defaults key, default, (English, Simplified Chinese, Traditional Chinese, Japanese))
 OPTIONS = (
-    (SHOW_NUMBERS, True, 'Show numbers', '显示数值'),
-    (SHOW_INACTIVE, True, 'Show inactive glyphs', '显示非活动字形'),
-    (TILT_ELLIPSE, False, 'Tilt ellipse with the ink', '椭圆随墨迹倾斜'),
-    (EXTEND_LINE, False, 'Extend center line across the line', '重心线延伸至整行'),
-    (SHOW_REFERENCE, True, 'Show font reference lines', '显示全字库参考线'),
+    (SHOW_NUMBERS, True, ('Show numbers', '显示数值', '顯示數值', '数値を表示')),
+    (SHOW_INACTIVE, True, ('Show on inactive glyphs', '在非活动字形上显示', '在非作用中字形上顯示', '非アクティブなグリフにも表示')),
+    (TILT_ELLIPSE, False, ('Tilt ellipse with the ink', '椭圆随墨迹倾斜', '橢圓隨墨跡傾斜', '楕円をインクの傾きに合わせる')),
+    (EXTEND_LINE, False, ('Extend center line across the line', '重心线延伸至整行', '重心線延伸至整行', '重心線を行全体に延長')),
+    (SHOW_REFERENCE, True, ('Show font reference lines', '显示全字库参考线', '顯示全字庫參考線', 'フォント全体の基準線を表示')),
 )
 
 MEASURES = ('relX', 'relY')
@@ -179,14 +185,20 @@ class Gravitation(ReporterPlugin):
     def settings(self):
         self.menuName = Glyphs.localize({
             'en': 'Gravitation',
-            'zh': '重力区域',
+            'zh': '重心区域',
+            'zh-Hans': '重心区域',
+            'zh-Hant': '重心區域',
+            'ja': '重心エリア',
+            'ko': '무게중심 영역',
             'de': 'Gravitation',
             'fr': 'Gravitation',
             'es': 'Gravitación',
             'pt': 'Gravitação',
+            'ru': 'Зона центра тяжести',
+            'ar': 'منطقة مركز الثقل',
             })
         self.keyboardShortcut = 'v'
-        Glyphs.registerDefaults({key: default for key, default, _, _ in OPTIONS})
+        Glyphs.registerDefaults({key: default for key, default, _ in OPTIONS})
         # (glyph name, layer id) -> {'signature', 'metrics', 'dependencies'}
         self.cache = {}
         # master id -> {'count', 'relX': (median, mad), 'relY': ..., 'values': {name: metrics}}
@@ -317,15 +329,19 @@ class Gravitation(ReporterPlugin):
 
     @objc.python_method
     def draw_numbers(self, metrics, reference, hairline):
-        text = Glyphs.localize({
-            'en': 'center {x:.1%} · {y:.1%}',
-            'zh': '重心 {x:.1%} · {y:.1%}',
-        }).format(x=metrics['relX'], y=metrics['relY'])
+        text = localized(
+            'center {x:.1%} · {y:.1%}',
+            '重心 {x:.1%} · {y:.1%}',
+            '重心 {x:.1%} · {y:.1%}',
+            '重心 {x:.1%} · {y:.1%}',
+        ).format(x=metrics['relX'], y=metrics['relY'])
         if reference:
-            text += Glyphs.localize({
-                'en': '   (font: {x:.1%} · {y:.1%})',
-                'zh': '   （字库：{x:.1%} · {y:.1%}）',
-            }).format(x=reference['relX'][0], y=reference['relY'][0])
+            text += localized(
+                '   (font: {x:.1%} · {y:.1%})',
+                '   （字库：{x:.1%} · {y:.1%}）',
+                '   （字庫：{x:.1%} · {y:.1%}）',
+                '   （フォント全体：{x:.1%} · {y:.1%}）',
+            ).format(x=reference['relX'][0], y=reference['relY'][0])
         position = NSMakePoint(metrics['width'] / 2, metrics['descender'] - 6 * hairline)
         self.drawTextAtPoint(text, position, fontSize=11, align='topcenter')
 
@@ -400,11 +416,11 @@ class Gravitation(ReporterPlugin):
         title.setFrame_(NSMakeRect(20, y + 2, width - 30, 17))
         view.addSubview_(title)
         self.checkboxes = []
-        for index, (key, _, en, zh) in enumerate(OPTIONS):
+        for index, (key, _, labels) in enumerate(OPTIONS):
             y -= row_height
             checkbox = NSButton.alloc().initWithFrame_(NSMakeRect(18, y, width - 28, row_height))
             checkbox.setButtonType_(NS_SWITCH_BUTTON)
-            checkbox.setTitle_(Glyphs.localize({'en': en, 'zh': zh}))
+            checkbox.setTitle_(localized(*labels))
             checkbox.setTag_(index)
             checkbox.setTarget_(self)
             checkbox.setAction_('toggleOption:')
@@ -417,12 +433,21 @@ class Gravitation(ReporterPlugin):
     def conditionalContextMenus(self):
         if self.settingsView is None:
             self.settingsView = self.build_settings_view()
-        for checkbox, (key, _, _, _) in zip(self.checkboxes, OPTIONS):
+        for checkbox, (key, _, _) in zip(self.checkboxes, OPTIONS):
             checkbox.setState_(1 if Glyphs.defaults[key] else 0)
+        # Prefix commands with the plugin's localized name, e.g. "重心区域：计算全字库参考"
+        prefix = self.menuName + localized(': ', '：', '：', '：')
+        compute = localized('Compute Font Reference', '计算全字库参考', '計算全字庫參考', 'フォント全体の基準値を計算')
+        outliers = localized(
+            'Show Off-Center Glyphs in New Tab',
+            '在新标签页显示重心偏离的字形',
+            '在新分頁顯示重心偏離的字形',
+            '重心がずれたグリフを新しいタブで表示',
+        )
         return [
             {'view': self.settingsView},
-            {'name': Glyphs.localize({'en': 'Gravitation: Compute Font Reference', 'zh': '重力区域：计算全字库参考'}), 'action': self.computeReference_},
-            {'name': Glyphs.localize({'en': 'Gravitation: Show Off-Center Glyphs in New Tab', 'zh': '重力区域：在新标签页显示偏离字形'}), 'action': self.showOutliers_},
+            {'name': prefix + compute, 'action': self.computeReference_},
+            {'name': prefix + outliers, 'action': self.showOutliers_},
         ]
 
 

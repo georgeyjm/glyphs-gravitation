@@ -84,12 +84,15 @@ class Gravitation(ReporterPlugin):
 
         The moments are integrated exactly from the outlines (Green's theorem),
         so no rasterization is needed. Overlaps are removed first so that
-        overlapping strokes are not counted twice.
+        overlapping strokes are not counted twice. Open contours enclose no
+        area, so they are skipped (StatisticsPen raises on them).
         """
         cleanLayer = layer.copyDecomposedLayer()
         cleanLayer.removeOverlap()
         pen = StatisticsPen()
-        cleanLayer.draw(pen)
+        for path in cleanLayer.paths:
+            if path.closed:
+                path.draw(pen)
         if not pen.area:
             return None
         return (

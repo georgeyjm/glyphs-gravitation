@@ -3,8 +3,7 @@ import objc
 from GlyphsApp import *
 from GlyphsApp.plugins import *
 
-import numpy as np
-import pyvips
+from fontTools.pens.statisticsPen import StatisticsPen
 
 
 class Gravitation(ReporterPlugin):
@@ -24,8 +23,6 @@ class Gravitation(ReporterPlugin):
         self.cached = {}
         self.cachedPath = None
 
-        self.scalar = 0.5 # Scale the SVG image for faster performance
-
 
     @objc.python_method
     def start(self):
@@ -37,27 +34,29 @@ class Gravitation(ReporterPlugin):
         if not self.conditionsAreMetForDrawing() or not layer.paths:
             return
         if layer.bezierPath == self.cachedPath:
-            self.draw_gravitation(self.cached.get(layer.parent.unicode + layer.layerId), True)
+            self.draw_gravitation(self.cached.get(layer.parent.name + layer.layerId), True)
         else:
             metrics = self.calculate_gravitation(layer)
             self.draw_gravitation(metrics, True)
             self.cachedPath = layer.bezierPath
-            self.cached[layer.parent.unicode + layer.layerId] = metrics
+            self.cached[layer.parent.name + layer.layerId] = metrics
 
 
     @objc.python_method
     def inactiveLayerForeground(self, layer):
         if not self.conditionsAreMetForDrawing() or not layer.paths:
             return
-        if layer.parent.unicode + layer.layerId in self.cached:
-            self.draw_gravitation(self.cached.get(layer.parent.unicode + layer.layerId), False)
+        if layer.parent.name + layer.layerId in self.cached:
+            self.draw_gravitation(self.cached.get(layer.parent.name + layer.layerId), False)
         else:
             metrics = self.calculate_gravitation(layer)
             self.draw_gravitation(metrics, False)
-            self.cached[layer.parent.unicode + layer.layerId] = metrics
+            self.cached[layer.parent.name + layer.layerId] = metrics
 
 
     def draw_gravitation(self, metrics, is_active=False):
+        if not metrics:
+            return
         if is_active:
             color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.9, 0.4, 0.0, 0.35)
         else:
@@ -79,66 +78,26 @@ class Gravitation(ReporterPlugin):
 
 
     def calculate_gravitation(self, layer):
-        # Get dimensions of SVG
-        width = layer.width
-        height = 0
-        descender = 0
-        for metric in layer.metrics:
-            # Metric types: ascender (1), cap height (2), baseline (8), descender (7)
-            if metric.metric.type == 1:
-                height += metric.position
-            elif metric.metric.type == 7:
-                height -= metric.position
-                descender = -metric.position
+        """
+        Return the (x, y, width, height) of an ellipse spanning one standard
+        deviation of the ink around its center of mass, in glyph units.
 
-        # Draw all SVG paths
-        svg = '<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="white"/>'.format(width, height)
-        path_d = ''
-        for path in layer.paths:
-            path_d += 'M {} {} '.format(path.nodes[-1].position.x, (height - path.nodes[-1].position.y - descender))
-            i = 0
-            while i < len(path.nodes) - 1:
-                node = path.nodes[i]
-                if node.type == 'offcurve':
-                    assert path.nodes[i + 1].type == 'offcurve'
-                    assert path.nodes[i + 2].type == 'curve'
-                    path_d += 'C {} {}, {} {}, {} {} '.format(node.position.x, (height - node.position.y - descender), path.nodes[i + 1].position.x, (height - path.nodes[i + 1].position.y - descender), path.nodes[i + 2].position.x, (height - path.nodes[i + 2].position.y - descender))
-                    i += 2
-                elif node.type == 'line':
-                    path_d += 'L {} {} '.format(node.position.x, (height - node.position.y - descender))
-                elif node.type == 'curve':
-                    raise ValueError
-                i += 1
-            path_d += 'Z '
-        svg += '<path d="{}" fill="black"/></svg>'.format(path_d)
-
-        # Calculate gravitation from SVG file (with scaling accounted for)
-        # print('draw', layer.parent.name)
-        center_x, center_y, var_x, var_y = self.calculate_gravitation_from_svg(svg)
-        center_y = height * self.scalar - center_y - descender * self.scalar # Different axis system
-        return (center_x - var_x) / self.scalar, (center_y - var_y) / self.scalar, var_x * 2 / self.scalar, var_y * 2 / self.scalar
-
-
-    def calculate_gravitation_from_svg(self, svg_code):
-        # Convert SVG code to NumPy array
-        im = pyvips.Image.svgload_buffer(bytes(svg_code, 'utf-8'), scale=self.scalar)
-        arr = (255 - im.numpy()[:, :, 0]) / 255
-        height, width = arr.shape
-        total_sum = arr.sum()
-
-        # Calculate horizontal distribution (summing vertically)
-        dist = arr.sum(axis=0)
-        vals = np.arange(1, width + 1)
-        center_x = np.dot(dist, vals) / total_sum
-        var_x = np.sqrt((dist * (vals - np.average(vals, weights=dist)) ** 2).sum() / total_sum)
-
-        # Calculate vertical distribution (summing horizontally)
-        dist = arr.sum(axis=1)
-        vals = np.arange(1, height + 1)
-        center_y = np.dot(dist, vals) / total_sum
-        var_y = np.sqrt((dist * (vals - np.average(vals, weights=dist)) ** 2).sum() / total_sum)
-
-        return center_x, center_y, var_x, var_y
+        The moments are integrated exactly from the outlines (Green's theorem),
+        so no rasterization is needed. Overlaps are removed first so that
+        overlapping strokes are not counted twice.
+        """
+        cleanLayer = layer.copyDecomposedLayer()
+        cleanLayer.removeOverlap()
+        pen = StatisticsPen()
+        cleanLayer.draw(pen)
+        if not pen.area:
+            return None
+        return (
+            pen.meanX - pen.stddevX,
+            pen.meanY - pen.stddevY,
+            pen.stddevX * 2,
+            pen.stddevY * 2,
+        )
 
 
     @objc.python_method

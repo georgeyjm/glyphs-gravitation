@@ -10,14 +10,8 @@ Gravitation helps type designers (especially those designing CJK typefaces) to v
 
 ## Installation
 
-1. Make sure Glyphs's Python is up-to-date (this can be done be removing and reinstalling Python in Plugin Manager > Modules).
+1. In Glyphs, open *Window > Plugin Manager > Modules* and install **Python** and **FontTools**. Then select the Python version marked "(Glyphs)" in *Settings > Addons* and restart Glyphs.
 
-2. If you have brew, run
-```shell
-brew install vips
-```
+2. Double-click `Gravitation.glyphsReporter` to install it, then restart Glyphs.
 
-3. Install numpy and pyvips using
-```shell
-~/Library/Application\ Support/Glyphs\ 3/Repositories/GlyphsPythonPlugin/Python.framework/Versions/Current/bin/pip3 install -t ~/Library/Application\ Support/Glyphs\ 3/Scripts/site-packages numpy pyvips
-```
+No other third-party libraries are needed: the center of gravity and spread are calculated directly from the outlines with fontTools' `StatisticsPen`.

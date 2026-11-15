@@ -65,3 +65,6 @@ dmypy.json
 *.swp
 *.swo
 .DS_Store
+
+# Local experiments (kept on disk, not shipped)
+Experiments/

@@ -14,10 +14,10 @@ class Gravitation(ReporterPlugin):
         self.menuName = Glyphs.localize({
             'en': 'Gravitation',
             'zh': '重力区域',
-            'de': 'Mein Plugin',
-            'fr': 'Ma extension',
-            'es': 'Mi plugin',
-            'pt': 'Meu plug-in',
+            'de': 'Gravitation',
+            'fr': 'Gravitation',
+            'es': 'Gravitación',
+            'pt': 'Gravitação',
             })
         self.keyboardShortcut = 'v'
 

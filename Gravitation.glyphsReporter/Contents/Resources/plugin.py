@@ -84,11 +84,16 @@ class Gravitation(ReporterPlugin):
 
         The moments are integrated exactly from the outlines (Green's theorem),
         so no rasterization is needed. Overlaps are removed first so that
-        overlapping strokes are not counted twice. Open contours enclose no
-        area, so they are skipped (StatisticsPen raises on them).
+        overlapping strokes are not counted twice. Path direction is then
+        corrected, because the integrals are signed: a stroke drawn clockwise
+        by mistake would subtract its area instead of adding it (and can
+        nearly cancel the rest of the glyph, blowing up the result). Open
+        contours enclose no area, so they are skipped (StatisticsPen raises
+        on them).
         """
         cleanLayer = layer.copyDecomposedLayer()
         cleanLayer.removeOverlap()
+        cleanLayer.correctPathDirection()
         pen = StatisticsPen()
         for path in cleanLayer.paths:
             if path.closed:
